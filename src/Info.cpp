@@ -42,8 +42,32 @@ static const std::map<int, const char*> vk_result
             VK_MAP_ITEM(VK_ERROR_INVALID_DEVICE_ADDRESS_EXT)
 };
 
+bool Info::m_initiatedOS{false};
+
+VkResult Info::initOS()
+{
+    if (!m_initiatedOS) {
+#ifdef __ANDROID__
+        // This place is the first place for samples to use Vulkan APIs.
+        // Here, we are going to open Vulkan.so on the device and retrieve function pointers using
+        // vulkan_wrapper helper.
+        if (!InitVulkan()) {
+            LOGE("Failied initializing Vulkan APIs!");
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+        LOGI("Loaded Vulkan APIs.");
+#endif
+        m_initiatedOS = true;
+    }
+    return VK_SUCCESS;
+}
+
 Info::Info() {
-    VkResult result;
+    VkResult result = initOS();
+    if (VK_SUCCESS != result) {
+        std::cout << "initOS error: " << vk_result.at(result) << "\n";
+        return;
+    }
     result = init_instance("VK_validator");
     if (VK_SUCCESS != result) {
         std::cout << "vkCreateInstance error: " << vk_result.at(result) << "\n";

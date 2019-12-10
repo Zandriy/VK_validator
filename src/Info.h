@@ -15,6 +15,8 @@ public:
     ~Info();
     void print_all() const;
 private:
+    static VkResult initOS();
+    static bool m_initiatedOS;
 
     VkResult get_layers();
     VkResult init_instance(char const *const app_name);
