@@ -42,6 +42,25 @@ static const std::map<int, const char*> vk_result
             VK_MAP_ITEM(VK_ERROR_INVALID_DEVICE_ADDRESS_EXT)
 };
 
+static const std::map<int, const char*> vk_queue_flags
+{
+    VK_MAP_ITEM( VK_QUEUE_GRAPHICS_BIT ),
+            VK_MAP_ITEM( VK_QUEUE_COMPUTE_BIT ),
+            VK_MAP_ITEM( VK_QUEUE_TRANSFER_BIT ),
+            VK_MAP_ITEM( VK_QUEUE_SPARSE_BINDING_BIT ),
+            VK_MAP_ITEM( VK_QUEUE_PROTECTED_BIT )
+};
+
+std::string get_queue_flags(VkQueueFlags flags) {
+    std::string f;
+    if (flags & VK_QUEUE_GRAPHICS_BIT) f.append(vk_queue_flags.at(VK_QUEUE_GRAPHICS_BIT)).append(",");
+    if (flags & VK_QUEUE_COMPUTE_BIT) f.append(vk_queue_flags.at(VK_QUEUE_COMPUTE_BIT)).append(",");
+    if (flags & VK_QUEUE_TRANSFER_BIT) f.append(vk_queue_flags.at(VK_QUEUE_TRANSFER_BIT)).append(",");
+    if (flags & VK_QUEUE_SPARSE_BINDING_BIT) f.append(vk_queue_flags.at(VK_QUEUE_SPARSE_BINDING_BIT)).append(",");
+    if (flags & VK_QUEUE_PROTECTED_BIT) f.append(vk_queue_flags.at(VK_QUEUE_PROTECTED_BIT)).append(",");
+    return f;
+}
+
 bool Info::m_initiatedOS{false};
 
 VkResult Info::initOS()
@@ -117,8 +136,26 @@ VkResult Info::check_gpus() {
     uint32_t gpu_count{0};
     VkResult result = vkEnumeratePhysicalDevices(m_inst, &gpu_count, nullptr);
     if (VK_SUCCESS == result && gpu_count) {
-        m_gpus.resize(gpu_count);
-        result = vkEnumeratePhysicalDevices(m_inst, &gpu_count, m_gpus.data());
+        m_gpus.clear();
+        std::vector<VkPhysicalDevice> gpus(gpu_count);
+        result = vkEnumeratePhysicalDevices(m_inst, &gpu_count, gpus.data());
+        if (VK_SUCCESS == result) {
+            for(auto gpu : gpus) {
+                m_gpus.push_back({gpu, {}});
+            }
+        }
+    }
+    if (VK_SUCCESS == result)
+    {
+        for (auto& gpu : m_gpus) {
+            uint32_t count{};
+            vkGetPhysicalDeviceQueueFamilyProperties(gpu.device, &count, nullptr);
+            if (!count) {
+                continue;
+            }
+            gpu.queue_props.resize(count);
+            vkGetPhysicalDeviceQueueFamilyProperties(gpu.device, &count, gpu.queue_props.data());
+        }
     }
     return result;
 }
@@ -181,25 +218,13 @@ VkResult Info::describe_device_extensions(Info::Layer &l) {
         do {
             uint32_t extensionCount{};
             // count extensions
-            result = vkEnumerateDeviceExtensionProperties(gpu, l.properties.layerName, &extensionCount, nullptr);
+            result = vkEnumerateDeviceExtensionProperties(gpu.device, l.properties.layerName, &extensionCount, nullptr);
 
             if (VK_SUCCESS == result) {
                 if (extensionCount) {
                     ext.resize(extensionCount);
                     // get extensions descriptions
-                    result = vkEnumerateDeviceExtensionProperties(gpu, l.properties.layerName, &extensionCount, ext.data());
-                    /*
-                        if (VK_SUCCESS == result) {
-                            std::cout << "===== " << extensionCount << " device extension" << (extensionCount == 1 ? "" : "s") << "\n";
-                            for (uint32_t i = 0; i < extensionCount; i++) {
-                                VkExtensionProperties *ext = &extensions[i];
-                                std::cout << ext->extensionName << ":"
-                                          << "\tver." << ext->specVersion << std::endl;
-                            }
-                        }
-                    }
-                    else {
-                        std::cout << "===== " << extensionCount << " device extensions" << "\n";*/
+                    result = vkEnumerateDeviceExtensionProperties(gpu.device, l.properties.layerName, &extensionCount, ext.data());
                 }
             }
         }
@@ -240,7 +265,14 @@ void Info::print_gpus() const
 {
     std::cout << "====== " << m_gpus.size() << " GPU" << (m_gpus.size() == 1 ? "" : "s") << "\n";
     for (auto& gpu : m_gpus) {
-        std::cout << gpu << "\n";
+        std::cout << "=== " << gpu.device << "\n";
+        for (auto& p : gpu.queue_props) {
+            std::cout << get_queue_flags(p.queueFlags) << " | count=" << p.queueCount << " | "
+                      << "timestamp range=" << p.timestampValidBits << " | "
+                      << "transfer granularity(w=" << p.minImageTransferGranularity.width
+                      << ", h=" << p.minImageTransferGranularity.height
+                      << ", d=" << p.minImageTransferGranularity.depth << ")\n";
+        }
     }
 }
 
@@ -253,7 +285,7 @@ void Info::print_layers() const
         std::cout << "/// Device Extensions ///\n";
         size_t i{};
         for (auto& d : l.device_extensions) {
-            std::cout << "+ GPU " << m_gpus.at(i) << " has ";
+            std::cout << "+ GPU " << m_gpus.at(i).device << " has ";
             print_extensions(d);
             ++i;
         }

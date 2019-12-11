@@ -10,6 +10,11 @@ class Info {
         std::vector<VkExtensionProperties> instance_extensions;
         std::vector<std::vector<VkExtensionProperties>> device_extensions;
     };
+    struct GPU{
+        VkPhysicalDevice device{};
+        std::vector<VkQueueFamilyProperties> queue_props;
+    };
+
 public:
     Info();
     ~Info();
@@ -33,7 +38,7 @@ private:
     void print_extention(const VkExtensionProperties &ext) const;
 
     VkInstance m_inst;
-    std::vector<VkPhysicalDevice> m_gpus;
+    std::vector<GPU> m_gpus;
     std::vector<Layer> m_layers;
 };
 
