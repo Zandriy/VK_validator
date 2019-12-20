@@ -12,7 +12,9 @@ class Info {
     };
     struct GPU{
         VkPhysicalDevice device{};
-        std::vector<VkQueueFamilyProperties> queue_props;
+        VkPhysicalDeviceProperties properties{};
+        VkPhysicalDeviceFeatures features{};
+        std::vector<VkQueueFamilyProperties> queue_props{};
     };
 
 public:

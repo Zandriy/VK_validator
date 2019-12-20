@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <map>
 #include <iostream>
+#include <sstream>
 
 #define stringify( name ) # name
 #define VK_MAP_ITEM(item) {item, stringify( item )}
@@ -51,13 +52,69 @@ static const std::map<int, const char*> vk_queue_flags
             VK_MAP_ITEM( VK_QUEUE_PROTECTED_BIT )
 };
 
+std::string substring(const std::string& str, size_t start, size_t from_end=0) {
+    return str.substr(start, str.size()-start-from_end);
+}
+
 std::string get_queue_flags(VkQueueFlags flags) {
+    std::string f{"VK_QUEUE("};
+    const size_t start{f.size()};
+    const size_t from_end{4};
+    if (flags & VK_QUEUE_GRAPHICS_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_GRAPHICS_BIT),start,from_end)).append("+");
+    if (flags & VK_QUEUE_COMPUTE_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_COMPUTE_BIT),start,from_end)).append("+");
+    if (flags & VK_QUEUE_TRANSFER_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_TRANSFER_BIT),start,from_end)).append("+");
+    if (flags & VK_QUEUE_SPARSE_BINDING_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_SPARSE_BINDING_BIT),start,from_end)).append("+");
+    if (flags & VK_QUEUE_PROTECTED_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_PROTECTED_BIT),start,from_end)).append("+");
+    if (f.size())  f.resize (f.size () - 1);
+    return f.append(")");
+}
+
+static const std::map<int, const char*> vk_device_types
+{
+    VK_MAP_ITEM( VK_PHYSICAL_DEVICE_TYPE_OTHER ),
+            VK_MAP_ITEM( VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ),
+            VK_MAP_ITEM( VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ),
+            VK_MAP_ITEM( VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU ),
+            VK_MAP_ITEM( VK_PHYSICAL_DEVICE_TYPE_CPU )
+};
+
+std::string get_device_types(VkPhysicalDeviceType flags) {
+    std::string f{"VK_PHYSICAL_DEVICE_TYPE("};
+    const size_t start{f.size()};
+    if (flags & VK_PHYSICAL_DEVICE_TYPE_OTHER) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_OTHER),start)).append("+");
+    if (flags & VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU),start)).append("+");
+    if (flags & VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU),start)).append("+");
+    if (flags & VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU),start)).append("+");
+    if (flags & VK_PHYSICAL_DEVICE_TYPE_CPU) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_CPU),start)).append("+");
+    if (f.size())  f.resize (f.size () - 1);
+    return f.append(")");
+}
+
+std::string uint8_array_to_str(const uint8_t* arr, size_t count) {
+    std::stringstream sstream;
+    sstream << std::hex << std::uppercase;
+    for (size_t i = 0; i < count; ++i) {
+        int num = arr[i];
+        if (num < 16) sstream << "0";
+        sstream << int(num);
+        if (!((i+1)%4) && i != count-1) {
+            sstream << "-";
+        }
+    }
+    return sstream.str();
+}
+
+template<class T>
+std::string bool32_array_to_str(T arr) {
     std::string f;
-    if (flags & VK_QUEUE_GRAPHICS_BIT) f.append(vk_queue_flags.at(VK_QUEUE_GRAPHICS_BIT)).append(",");
-    if (flags & VK_QUEUE_COMPUTE_BIT) f.append(vk_queue_flags.at(VK_QUEUE_COMPUTE_BIT)).append(",");
-    if (flags & VK_QUEUE_TRANSFER_BIT) f.append(vk_queue_flags.at(VK_QUEUE_TRANSFER_BIT)).append(",");
-    if (flags & VK_QUEUE_SPARSE_BINDING_BIT) f.append(vk_queue_flags.at(VK_QUEUE_SPARSE_BINDING_BIT)).append(",");
-    if (flags & VK_QUEUE_PROTECTED_BIT) f.append(vk_queue_flags.at(VK_QUEUE_PROTECTED_BIT)).append(",");
+    size_t count{sizeof (arr) / sizeof(VkBool32)};
+    VkBool32* fea = (VkBool32*)(&arr);
+    for (size_t i = 0; i < count; ++i) {
+        if (i && !(i%5)) {
+            f.append(" ");
+        }
+        f.append(fea[i] ? "1" : "0");
+    }
     return f;
 }
 
@@ -148,13 +205,14 @@ VkResult Info::check_gpus() {
     if (VK_SUCCESS == result)
     {
         for (auto& gpu : m_gpus) {
+            vkGetPhysicalDeviceProperties(gpu.device, &gpu.properties);
             uint32_t count{};
             vkGetPhysicalDeviceQueueFamilyProperties(gpu.device, &count, nullptr);
-            if (!count) {
-                continue;
+            if (count) {
+                gpu.queue_props.resize(count);
+                vkGetPhysicalDeviceQueueFamilyProperties(gpu.device, &count, gpu.queue_props.data());
             }
-            gpu.queue_props.resize(count);
-            vkGetPhysicalDeviceQueueFamilyProperties(gpu.device, &count, gpu.queue_props.data());
+            vkGetPhysicalDeviceFeatures(gpu.device, &gpu.features);
         }
     }
     return result;
@@ -265,7 +323,20 @@ void Info::print_gpus() const
 {
     std::cout << "====== " << m_gpus.size() << " GPU" << (m_gpus.size() == 1 ? "" : "s") << "\n";
     for (auto& gpu : m_gpus) {
-        std::cout << "=== " << gpu.device << "\n";
+        std::cout << "=== " << gpu.device << " | " << gpu.properties.deviceName
+                  << " | api v." <<  gpu.properties.apiVersion
+                  << " | driver v." <<  gpu.properties.driverVersion << "\n";
+        std::cout << "=== https://pcilookup.com : " << std::hex << std::uppercase
+                  << "vendorID " << gpu.properties.vendorID
+                  << " | deviceID " << gpu.properties.deviceID << "\n";
+        std::cout << "=== " << "types: " << get_device_types(gpu.properties.deviceType) << "\n";
+        std::cout << "=== " << "UUID: " << uint8_array_to_str(gpu.properties.pipelineCacheUUID, VK_UUID_SIZE) << "\n";
+        std::cout << "=== " << "limits: maxImageDimension1D=" << gpu.properties.limits.maxImageDimension1D
+                  << ", maxImageDimension2D=" << gpu.properties.limits.maxImageDimension2D
+                  << ", maxImageDimension3D=" << gpu.properties.limits.maxImageDimension3D
+                  << ", maxImageDimensionCube=" << gpu.properties.limits.maxImageDimensionCube << ",...\n";
+        std::cout << "=== " << "sparse: " << bool32_array_to_str(gpu.properties.sparseProperties) << "\n";
+        std::cout << "=== " << "features: " << bool32_array_to_str(gpu.features) << "\n";
         for (auto& p : gpu.queue_props) {
             std::cout << get_queue_flags(p.queueFlags) << " | count=" << p.queueCount << " | "
                       << "timestamp range=" << p.timestampValidBits << " | "
