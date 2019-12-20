@@ -14,6 +14,7 @@ class Info {
         VkPhysicalDevice device{};
         VkPhysicalDeviceProperties properties{};
         VkPhysicalDeviceFeatures features{};
+        VkPhysicalDeviceMemoryProperties memory_props{};
         std::vector<VkQueueFamilyProperties> queue_props{};
     };
 

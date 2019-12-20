@@ -52,23 +52,6 @@ static const std::map<int, const char*> vk_queue_flags
             VK_MAP_ITEM( VK_QUEUE_PROTECTED_BIT )
 };
 
-std::string substring(const std::string& str, size_t start, size_t from_end=0) {
-    return str.substr(start, str.size()-start-from_end);
-}
-
-std::string get_queue_flags(VkQueueFlags flags) {
-    std::string f{"VK_QUEUE("};
-    const size_t start{f.size()};
-    const size_t from_end{4};
-    if (flags & VK_QUEUE_GRAPHICS_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_GRAPHICS_BIT),start,from_end)).append("+");
-    if (flags & VK_QUEUE_COMPUTE_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_COMPUTE_BIT),start,from_end)).append("+");
-    if (flags & VK_QUEUE_TRANSFER_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_TRANSFER_BIT),start,from_end)).append("+");
-    if (flags & VK_QUEUE_SPARSE_BINDING_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_SPARSE_BINDING_BIT),start,from_end)).append("+");
-    if (flags & VK_QUEUE_PROTECTED_BIT) f.append(substring(vk_queue_flags.at(VK_QUEUE_PROTECTED_BIT),start,from_end)).append("+");
-    if (f.size())  f.resize (f.size () - 1);
-    return f.append(")");
-}
-
 static const std::map<int, const char*> vk_device_types
 {
     VK_MAP_ITEM( VK_PHYSICAL_DEVICE_TYPE_OTHER ),
@@ -78,14 +61,81 @@ static const std::map<int, const char*> vk_device_types
             VK_MAP_ITEM( VK_PHYSICAL_DEVICE_TYPE_CPU )
 };
 
+static const std::map<int, const char*> vk_memory_props_flags
+{
+    VK_MAP_ITEM( VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT ),
+            VK_MAP_ITEM( VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT ),
+            VK_MAP_ITEM( VK_MEMORY_PROPERTY_HOST_COHERENT_BIT ),
+            VK_MAP_ITEM( VK_MEMORY_PROPERTY_HOST_CACHED_BIT ),
+            VK_MAP_ITEM( VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT ),
+            VK_MAP_ITEM( VK_MEMORY_PROPERTY_PROTECTED_BIT ),
+            VK_MAP_ITEM( VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD ),
+            VK_MAP_ITEM( VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD )
+};
+
+static const std::map<int, const char*> vk_memory_heap_flags
+{
+    VK_MAP_ITEM( VK_MEMORY_HEAP_DEVICE_LOCAL_BIT ),
+            VK_MAP_ITEM( VK_MEMORY_HEAP_MULTI_INSTANCE_BIT )
+};
+
+std::string substring(const std::string& str, size_t start, size_t from_end=0) {
+    return str.substr(start, str.size()-start-from_end);
+}
+
+template<class I, class F, class M>
+void extract_str(I index, F flags, const M& map, std::string& str, size_t start, size_t from_end=0) {
+    if (flags & index) str.append(substring(map.at(index),start,from_end)).append("+");
+}
+
+std::string get_queue_flags(VkQueueFlags flags) {
+    std::string f{"VK_QUEUE("};
+    const size_t start{f.size()};
+    const size_t from_end{4};
+    extract_str(VK_QUEUE_GRAPHICS_BIT, flags, vk_queue_flags, f, start, from_end);
+    extract_str(VK_QUEUE_COMPUTE_BIT, flags, vk_queue_flags, f, start, from_end);
+    extract_str(VK_QUEUE_TRANSFER_BIT, flags, vk_queue_flags, f, start, from_end);
+    extract_str(VK_QUEUE_SPARSE_BINDING_BIT, flags, vk_queue_flags, f, start, from_end);
+    extract_str(VK_QUEUE_PROTECTED_BIT, flags, vk_queue_flags, f, start, from_end);
+    if (f.size())  f.resize (f.size () - 1);
+    return f.append(")");
+}
+
 std::string get_device_types(VkPhysicalDeviceType flags) {
     std::string f{"VK_PHYSICAL_DEVICE_TYPE("};
     const size_t start{f.size()};
-    if (flags & VK_PHYSICAL_DEVICE_TYPE_OTHER) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_OTHER),start)).append("+");
-    if (flags & VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU),start)).append("+");
-    if (flags & VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU),start)).append("+");
-    if (flags & VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU),start)).append("+");
-    if (flags & VK_PHYSICAL_DEVICE_TYPE_CPU) f.append(substring(vk_device_types.at(VK_PHYSICAL_DEVICE_TYPE_CPU),start)).append("+");
+    extract_str(VK_PHYSICAL_DEVICE_TYPE_OTHER, flags, vk_device_types, f, start);
+    extract_str(VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU, flags, vk_device_types, f, start);
+    extract_str(VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, flags, vk_device_types, f, start);
+    extract_str(VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU, flags, vk_device_types, f, start);
+    extract_str(VK_PHYSICAL_DEVICE_TYPE_CPU, flags, vk_device_types, f, start);
+    if (f.size())  f.resize (f.size () - 1);
+    return f.append(")");
+}
+
+std::string get_memory_props_flags(VkMemoryPropertyFlags flags) {
+    std::string f{"VK_MEMORY_PROPERTY("};
+    const size_t start{f.size()};
+    size_t from_end{4};
+    extract_str(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, flags, vk_memory_props_flags, f, start, from_end);
+    extract_str(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, flags, vk_memory_props_flags, f, start, from_end);
+    extract_str(VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, flags, vk_memory_props_flags, f, start, from_end);
+    extract_str(VK_MEMORY_PROPERTY_HOST_CACHED_BIT, flags, vk_memory_props_flags, f, start, from_end);
+    extract_str(VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT, flags, vk_memory_props_flags, f, start, from_end);
+    extract_str(VK_MEMORY_PROPERTY_PROTECTED_BIT, flags, vk_memory_props_flags, f, start, from_end);
+    from_end+=4;
+    extract_str(VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD, flags, vk_memory_props_flags, f, start, from_end);
+    extract_str(VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD, flags, vk_memory_props_flags, f, start, from_end);
+    if (f.size())  f.resize (f.size () - 1);
+    return f.append(")");
+}
+
+std::string get_memory_heap_flags(VkMemoryHeapFlags flags) {
+    std::string f{"VK_MEMORY_HEAP("};
+    const size_t start{f.size()};
+    const size_t from_end{4};
+    extract_str(VK_MEMORY_HEAP_DEVICE_LOCAL_BIT, flags, vk_memory_heap_flags, f, start, from_end);
+    extract_str(VK_MEMORY_HEAP_MULTI_INSTANCE_BIT, flags, vk_memory_heap_flags, f, start, from_end);
     if (f.size())  f.resize (f.size () - 1);
     return f.append(")");
 }
@@ -213,6 +263,7 @@ VkResult Info::check_gpus() {
                 vkGetPhysicalDeviceQueueFamilyProperties(gpu.device, &count, gpu.queue_props.data());
             }
             vkGetPhysicalDeviceFeatures(gpu.device, &gpu.features);
+            vkGetPhysicalDeviceMemoryProperties(gpu.device, &gpu.memory_props);
         }
     }
     return result;
@@ -328,15 +379,26 @@ void Info::print_gpus() const
                   << " | driver v." <<  gpu.properties.driverVersion << "\n";
         std::cout << "=== https://pcilookup.com : " << std::hex << std::uppercase
                   << "vendorID " << gpu.properties.vendorID
-                  << " | deviceID " << gpu.properties.deviceID << "\n";
-        std::cout << "=== " << "types: " << get_device_types(gpu.properties.deviceType) << "\n";
-        std::cout << "=== " << "UUID: " << uint8_array_to_str(gpu.properties.pipelineCacheUUID, VK_UUID_SIZE) << "\n";
-        std::cout << "=== " << "limits: maxImageDimension1D=" << gpu.properties.limits.maxImageDimension1D
+                  << " | deviceID " << gpu.properties.deviceID << std::dec << std::nouppercase << "\n";
+        std::cout << "=== types: " << get_device_types(gpu.properties.deviceType) << "\n";
+        std::cout << "=== UUID: " << uint8_array_to_str(gpu.properties.pipelineCacheUUID, VK_UUID_SIZE) << "\n";
+        std::cout << "=== limits: maxImageDimension1D=" << gpu.properties.limits.maxImageDimension1D
                   << ", maxImageDimension2D=" << gpu.properties.limits.maxImageDimension2D
                   << ", maxImageDimension3D=" << gpu.properties.limits.maxImageDimension3D
                   << ", maxImageDimensionCube=" << gpu.properties.limits.maxImageDimensionCube << ",...\n";
-        std::cout << "=== " << "sparse: " << bool32_array_to_str(gpu.properties.sparseProperties) << "\n";
-        std::cout << "=== " << "features: " << bool32_array_to_str(gpu.features) << "\n";
+        std::cout << "=== sparse: " << bool32_array_to_str(gpu.properties.sparseProperties) << "\n";
+        std::cout << "=== features: " << bool32_array_to_str(gpu.features) << "\n";
+
+        std::cout << "=== memory:\n";
+        for (uint32_t i = 0; i < gpu.memory_props.memoryTypeCount; ++i) {
+            std::cout << gpu.memory_props.memoryTypes[i].heapIndex << ". "
+                      << get_memory_props_flags(gpu.memory_props.memoryTypes[i].propertyFlags) << "\n";
+        }
+        for (uint32_t i = 0; i < gpu.memory_props.memoryHeapCount; ++i) {
+            std::cout << "size=" << gpu.memory_props.memoryHeaps[i].size << " "
+                      << get_memory_heap_flags(gpu.memory_props.memoryHeaps[i].flags) << "\n";
+        }
+
         for (auto& p : gpu.queue_props) {
             std::cout << get_queue_flags(p.queueFlags) << " | count=" << p.queueCount << " | "
                       << "timestamp range=" << p.timestampValidBits << " | "
@@ -387,5 +449,5 @@ void Info::print_extensions(const std::vector<VkExtensionProperties>& extensions
 
 void Info::print_extention(const VkExtensionProperties& ext) const
 {
-    std::cout << ext.extensionName << ":" << "\tver." << ext.specVersion << std::endl;
+    std::cout << ext.extensionName << ":\tver." << ext.specVersion << std::endl;
 }
